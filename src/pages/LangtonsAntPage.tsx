@@ -1,288 +1,323 @@
-import React, { useRef, useEffect, useState } from 'react';
-import p5 from 'p5';
-import { Link } from 'react-router-dom';
-import { createLangtonsAntEngine, LangtonsAntConfig, defaultLangtonsAntConfig } from '../engines/LangtonsAntEngine';
-import Slider from '../components/ui/Slider';
-import Toggle from '../components/ui/Toggle';
-import Button from '../components/ui/Button';
-import RadioGroup from '../components/ui/RadioGroup';
-import ColorPicker from '../components/ui/ColorPicker';
-import ExportPanel from '../components/ui/ExportPanel';
+// Definición del motor Langton's Ant
+export interface LangtonsAntConfig {
+  cellSize: number;
+  speed: number;
+  colorMode: 'binary' | 'gradient' | 'rainbow';
+  antColor: string;
+  backgroundColor: string;
+  cellActiveColor: string;
+  rules: string;
+  wrap: boolean;
+  multipleAnts: boolean;
+  numberOfAnts: number;
+}
 
-const LangtonsAntPage: React.FC = () => {
-  const [config, setConfig] = useState<LangtonsAntConfig>({...defaultLangtonsAntConfig});
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [stepCount, setStepCount] = useState(0);
-  const [showControls, setShowControls] = useState(true);
-  const [isInitialized, setIsInitialized] = useState(false);
-  
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const p5Instance = useRef<any>(null);
-  const engineRef = useRef<any>(null);
+export interface Ant {
+  x: number;
+  y: number;
+  direction: number; // 0: up, 1: right, 2: down, 3: left
+}
 
-  // Actualizar la configuración del motor
-  useEffect(() => {
-    if (engineRef.current) {
-      engineRef.current.setConfig(config);
-    }
-  }, [config]);
-  
-  // Inicializar p5.js y el motor de Langton's Ant
-  useEffect(() => {
-    // Evitar inicialización múltiple
-    if (isInitialized || !containerRef.current) return;
-    
-    const sketch = (p: any) => {
-      let engine: any;
+export interface Grid {
+  cells: number[][];
+  width: number;
+  height: number;
+}
 
-      p.setup = () => {
-        // Usar el tamaño del contenedor
-        const width = containerRef.current?.clientWidth || window.innerWidth - 32;
-        const height = containerRef.current?.clientHeight || window.innerHeight - 32;
-        
-        // Usar P2D renderer explícitamente para evitar problemas con WebGL
-        const canvas = p.createCanvas(width, height, p.P2D);
-        canvas.parent(containerRef.current!);
-        canvasRef.current = canvas.elt;
-        
-        // Inicializar el motor
-        engine = createLangtonsAntEngine(p, config);
-        engineRef.current = engine;
-        
-        engine.setup(width, height);
-      };
-      
-      p.draw = () => {
-        engine.draw();
-        // Optimización: actualizar el contador de pasos solo cuando cambia
-        // para evitar actualizaciones de estado innecesarias
-        const currentStepCount = engine.getStepCount();
-        if (currentStepCount !== stepCount) {
-          setStepCount(currentStepCount);
-        }
-      };
-      
-      // Manejar el redimensionamiento
-      p.windowResized = () => {
-        if (!containerRef.current) return;
-        
-        const width = containerRef.current.clientWidth;
-        const height = containerRef.current.clientHeight;
-        
-        p.resizeCanvas(width, height);
-        engine.reset(width, height);
-      };
-    };
-    
-    // Crear la instancia de p5
-    p5Instance.current = new p5(sketch);
-    setIsInitialized(true);
-    
-    // Cleanup al desmontar
-    return () => {
-      if (p5Instance.current) {
-        try {
-          p5Instance.current.remove();
-        } catch (e) {
-          console.warn("Error removing p5 instance:", e);
-        }
-        p5Instance.current = null;
-      }
-      engineRef.current = null;
-      canvasRef.current = null;
-      setIsInitialized(false);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialized]);
-  
-  // Manejar el play/pause
-  useEffect(() => {
-    if (!engineRef.current) return;
-    
-    if (isPlaying) {
-      engineRef.current.resume();
-    } else {
-      engineRef.current.pause();
-    }
-  }, [isPlaying]);
-  
-  // Manejar cambios en los controles
-  const handleConfigChange = <K extends keyof LangtonsAntConfig>(key: K, value: LangtonsAntConfig[K]) => {
-    setConfig(prevConfig => ({
-      ...prevConfig,
-      [key]: value
-    }));
-  };
-  
-  const handleReset = () => {
-    if (!engineRef.current || !containerRef.current) return;
-    
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
-    
-    engineRef.current.reset(width, height);
-  };
-
-  const toggleControlsPanel = () => {
-    setShowControls(!showControls);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black overflow-hidden z-[40]">
-      {/* Botón de regreso a la navegación principal */}
-      <div className="absolute top-4 left-4 z-[60]">
-        <Link 
-          to="/" 
-          className="bg-black border border-terminal-green p-2 text-terminal-green hover:bg-terminal-green/20 transition-colors flex items-center space-x-2 text-xs"
-        >
-          <span>&lt;&lt;</span>
-          <span>VOLVER</span>
-        </Link>
-      </div>
-      
-      {/* Contenedor para el canvas de p5.js */}
-      <div 
-        ref={containerRef} 
-        className="absolute inset-0"
-        style={{ padding: '8px' }}
-      />
-      
-      {/* Panel de control flotante - esquina superior derecha */}
-      <div 
-        className="fixed top-16 right-4 z-[50] transition-all duration-300 ease-in-out"
-        style={{ 
-          maxWidth: '300px', 
-          transform: showControls ? 'translateX(0)' : 'translateX(calc(100% - 36px))'
-        }}
-      >
-        <div 
-          className="absolute -left-6 top-2 bg-black border border-terminal-green px-0.5 py-1 cursor-pointer text-terminal-green hover:bg-terminal-green/20 transition-colors text-xs"
-          onClick={toggleControlsPanel}
-        >
-          {showControls ? '>' : '<'}
-        </div>
-        
-        <div className="bg-black bg-opacity-80 border border-terminal-green/70 shadow-terminal p-3 backdrop-blur-md">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-terminal-green text-sm font-terminal uppercase">{"// PARAMETERS"}</h2>
-            <span className="text-xs text-terminal-dim">v1.0</span>
-          </div>
-          
-          <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-3 text-xs">
-            <Slider
-              label="Cell Size"
-              value={config.cellSize}
-              min={2}
-              max={20}
-              onChange={(value) => handleConfigChange('cellSize', value)}
-            />
-            
-            <Slider
-              label="Speed"
-              value={config.speed}
-              min={1}
-              max={20}
-              onChange={(value) => handleConfigChange('speed', value)}
-            />
-            
-            <RadioGroup
-              label="Color Mode"
-              name="colorMode"
-              value={config.colorMode}
-              onChange={(value) => handleConfigChange('colorMode', value as LangtonsAntConfig['colorMode'])}
-              options={[
-                { value: 'binary', label: 'Binary' },
-                { value: 'gradient', label: 'Gradient' },
-                { value: 'rainbow', label: 'Rainbow' }
-              ]}
-            />
-            
-            <div className="grid grid-cols-2 gap-2">
-              <ColorPicker
-                label="Ant Color"
-                color={config.antColor}
-                onChange={(value) => handleConfigChange('antColor', value)}
-              />
-              
-              <ColorPicker
-                label="Cell Color"
-                color={config.cellActiveColor}
-                onChange={(value) => handleConfigChange('cellActiveColor', value)}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="block text-xs text-terminal-green tracking-wide">&gt; Rules</label>
-              <input
-                type="text"
-                value={config.rules}
-                onChange={(e) => handleConfigChange('rules', e.target.value.toUpperCase().replace(/[^RL]/g, ''))}
-                placeholder="RL"
-                className="w-full px-2 py-1 bg-black border border-terminal-green/50 text-terminal-green font-mono text-center tracking-widest focus:outline-none focus:border-terminal-green text-sm"
-              />
-              <p className="text-xs text-terminal-dim">
-                R=RIGHT, L=LEFT. DEFAULT: "RL"
-              </p>
-            </div>
-            
-            <Toggle
-              label="Wrap Edges"
-              isChecked={config.wrap}
-              onChange={(value) => handleConfigChange('wrap', value)}
-            />
-            
-            <Toggle
-              label="Multiple Ants"
-              isChecked={config.multipleAnts}
-              onChange={(value) => handleConfigChange('multipleAnts', value)}
-            />
-            
-            {config.multipleAnts && (
-              <Slider
-                label="Number of Ants"
-                value={config.numberOfAnts}
-                min={1}
-                max={10}
-                onChange={(value) => handleConfigChange('numberOfAnts', value)}
-              />
-            )}
-            
-            <ExportPanel sketchRef={canvasRef} title="EXPORT" />
-          </div>
-        </div>
-      </div>
-      
-      {/* Panel de control inferior */}
-      <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-10 bg-black bg-opacity-80 border border-terminal-green/70 p-2 shadow-terminal backdrop-blur-md">
-        <div className="flex items-center space-x-4">
-          <Button
-            onClick={() => setIsPlaying(!isPlaying)}
-            variant="primary"
-            icon={isPlaying ? <span className="font-mono">||</span> : <span className="font-mono">▶</span>}
-          >
-            {isPlaying ? 'PAUSE' : 'PLAY'}
-          </Button>
-          
-          <Button
-            onClick={handleReset}
-            variant="secondary"
-            icon={<span className="font-mono">↻</span>}
-          >
-            RESET
-          </Button>
-          
-          <div className="font-mono text-terminal-green border-l border-terminal-green/30 pl-6 ml-2">
-            <span className="text-terminal-dim mr-2">STEPS:</span> 
-            <span className="text-terminal-highlight">{stepCount.toString().padStart(8, '0')}</span>
-          </div>
-        </div>
-      </div>
-      
-      {/* Scanlines para mantener el efecto CRT */}
-      <div className="scanlines fixed inset-0 z-[70] pointer-events-none"></div>
-    </div>
-  );
+// Configuración por defecto
+export const defaultLangtonsAntConfig: LangtonsAntConfig = {
+  cellSize: 10,
+  speed: 5,
+  colorMode: 'binary',
+  antColor: '#00ff00',
+  backgroundColor: '#000000',
+  cellActiveColor: '#00cc00',
+  rules: 'RL', // R = Turn right, L = Turn left
+  wrap: true,
+  multipleAnts: false,
+  numberOfAnts: 1,
 };
 
-export default LangtonsAntPage;
+export const createLangtonsAntEngine = (p5: any, config: LangtonsAntConfig) => {
+  let grid: Grid;
+  let ants: Ant[] = [];
+  let isPaused = false;
+  let stepCount = 0;
+  
+  const initGrid = (width: number, height: number) => {
+    const cols = Math.floor(width / config.cellSize);
+    const rows = Math.floor(height / config.cellSize);
+    
+    // Inicializar la cuadrícula con ceros (celdas inactivas)
+    // Asegurarse de que se cree correctamente el array bidimensional (cols x rows)
+    // cells[x][y] donde x es la columna e y es la fila
+    const cells = Array(cols).fill(null).map(() => Array(rows).fill(0));
+    
+    console.log(`Grid created with ${cols} columns and ${rows} rows`);
+    
+    return {
+      cells,
+      width: cols,
+      height: rows
+    };
+  };
+  
+  const initAnts = () => {
+    ants = [];
+    const centerX = Math.floor(grid.width / 2);
+    const centerY = Math.floor(grid.height / 2);
+    
+    // Crear la hormiga principal en el centro
+    ants.push({
+      x: centerX,
+      y: centerY,
+      direction: 0
+    });
+    
+    // Si está habilitado el modo múltiples hormigas, crear más
+    if (config.multipleAnts && config.numberOfAnts > 1) {
+      for (let i = 1; i < config.numberOfAnts; i++) {
+        // Distribuir las hormigas aleatoriamente
+        const x = Math.floor(Math.random() * grid.width);
+        const y = Math.floor(Math.random() * grid.height);
+        ants.push({
+          x,
+          y,
+          direction: Math.floor(Math.random() * 4)
+        });
+      }
+    }
+  };
+  
+  const setup = (width: number, height: number) => {
+    console.log(`Setting up engine with canvas size: ${width}x${height}`);
+    
+    // Validar dimensiones
+    if (width <= 0 || height <= 0) {
+      console.error(`Invalid dimensions: ${width}x${height}`);
+      width = Math.max(300, width);
+      height = Math.max(300, height);
+    }
+    
+    // Inicializar la cuadrícula
+    grid = initGrid(width, height);
+    
+    // Inicializar hormigas
+    initAnts();
+    
+    // Reiniciar contador
+    stepCount = 0;
+    
+    // Forzar renderer de p5 a actualizar
+    p5.redraw();
+  };
+  
+  const getCellColor = (cellState: number) => {
+    switch (config.colorMode) {
+      case 'binary':
+        return cellState > 0 ? config.cellActiveColor : config.backgroundColor;
+      case 'gradient': {
+        const hue = (cellState * 10) % 360;
+        return p5.color(`hsl(${hue}, 80%, 60%)`);
+      }
+      case 'rainbow': {
+        const rainbowHue = (cellState * 30) % 360;
+        return p5.color(`hsl(${rainbowHue}, 100%, 50%)`);
+      }
+      default:
+        return config.cellActiveColor;
+    }
+  };
+  
+  const updateAnts = () => {
+    if (isPaused) return;
+    
+    try {
+      // Actualizar cada hormiga según las reglas configuradas
+      for (let a = 0; a < ants.length; a++) {
+        const ant = ants[a];
+        
+        // Verificar que la hormiga está dentro de los límites válidos
+        if (ant.x < 0 || ant.x >= grid.width || ant.y < 0 || ant.y >= grid.height) {
+          console.warn(`Ant out of bounds: ${ant.x}, ${ant.y}, grid: ${grid.width}x${grid.height}`);
+          ant.x = Math.floor(grid.width / 2);
+          ant.y = Math.floor(grid.height / 2);
+          continue;
+        }
+        
+        // Verificar que grid.cells está correctamente definido
+        if (!grid.cells || !grid.cells[ant.x]) {
+          console.error(`Invalid grid cells at x=${ant.x}`);
+          continue;
+        }
+        
+        // Obtener el estado de la celda actual
+        const cellState = grid.cells[ant.x][ant.y];
+        
+        // Determinar qué hacer según las reglas (índice de la regla = estado % length)
+        // Asegurar que config.rules tiene al menos un carácter
+        const rules = config.rules.length > 0 ? config.rules : 'RL';
+        const ruleIndex = cellState % rules.length;
+        const rule = rules[ruleIndex];
+        
+        // Cambiar dirección según la regla
+        if (rule === 'R') {
+          ant.direction = (ant.direction + 1) % 4;
+        } else if (rule === 'L') {
+          ant.direction = (ant.direction + 3) % 4; // +3 es lo mismo que -1 en módulo 4
+        }
+        
+        // Incrementar el estado de la celda
+        grid.cells[ant.x][ant.y] = (cellState + 1) % (config.rules.length + 1);
+        
+        // Mover la hormiga
+        switch (ant.direction) {
+          case 0: // Up
+            ant.y--;
+            break;
+          case 1: // Right
+            ant.x++;
+            break;
+          case 2: // Down
+            ant.y++;
+            break;
+          case 3: // Left
+            ant.x--;
+            break;
+        }
+        
+        // Aplicar envoltorio si está habilitado
+        if (config.wrap) {
+          if (ant.x < 0) ant.x = grid.width - 1;
+          if (ant.x >= grid.width) ant.x = 0;
+          if (ant.y < 0) ant.y = grid.height - 1;
+          if (ant.y >= grid.height) ant.y = 0;
+        } else {
+          // Si no hay envoltorio y la hormiga sale de los límites, reiniciarla
+          if (ant.x < 0 || ant.x >= grid.width || ant.y < 0 || ant.y >= grid.height) {
+            // Reiniciar esta hormiga al centro
+            ant.x = Math.floor(grid.width / 2);
+            ant.y = Math.floor(grid.height / 2);
+            ant.direction = Math.floor(Math.random() * 4);
+          }
+        }
+      }
+      
+      stepCount++;
+    } catch (error) {
+      console.error("Error updating ants:", error);
+    }
+  };
+  
+  const draw = () => {
+    // Comprobar que la grilla existe
+    if (!grid || !grid.cells) {
+      console.error("Grid not initialized");
+      return;
+    }
+    
+    // Limpiar el fondo
+    p5.background(config.backgroundColor);
+    
+    // Configurar estilo de dibujo para celdas
+    p5.noStroke(); // Mejor rendimiento sin bordes
+    
+    try {
+      // Dibujar solo las celdas activas
+      for (let x = 0; x < grid.width; x++) {
+        for (let y = 0; y < grid.height; y++) {
+          // Verificar que el índice es válido y la celda está activa
+          if (grid.cells[x] && typeof grid.cells[x][y] === 'number' && grid.cells[x][y] > 0) {
+            p5.fill(getCellColor(grid.cells[x][y]));
+            p5.rect(
+              x * config.cellSize, 
+              y * config.cellSize, 
+              config.cellSize, 
+              config.cellSize
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error rendering cells:", e);
+    }
+    
+    // Dibujar las hormigas
+    try {
+      p5.fill(config.antColor);
+      
+      for (let ant of ants) {
+        // Verificar que las coordenadas de la hormiga son válidas
+        if (ant.x >= 0 && ant.x < grid.width && ant.y >= 0 && ant.y < grid.height) {
+          p5.push();
+          p5.translate(
+            ant.x * config.cellSize + config.cellSize / 2, 
+            ant.y * config.cellSize + config.cellSize / 2
+          );
+          
+          // Rotar según la dirección
+          p5.rotate(p5.radians(ant.direction * 90));
+          
+          // Dibujar una hormiga con forma de triángulo
+          p5.triangle(
+            0, -config.cellSize / 2,
+            -config.cellSize / 3, config.cellSize / 3,
+            config.cellSize / 3, config.cellSize / 3
+          );
+          
+          p5.pop();
+        } else {
+          console.warn(`Ant out of bounds: ${ant.x},${ant.y}`);
+        }
+      }
+    } catch (e) {
+      console.error("Error rendering ants:", e);
+    }
+    
+    // Ejecutar múltiples pasos según la configuración de velocidad
+    if (!isPaused) {
+      try {
+        // Limitar la velocidad a un máximo razonable
+        const stepsPerFrame = Math.min(config.speed, 50);
+        
+        for (let i = 0; i < stepsPerFrame; i++) {
+          updateAnts();
+        }
+      } catch (e) {
+        console.error("Error updating ants:", e);
+        isPaused = true; // Pausar en caso de error para evitar un bucle infinito
+      }
+    }
+  };
+  
+  // Métodos para controlar el motor
+  const pause = () => {
+    isPaused = true;
+  };
+  
+  const resume = () => {
+    isPaused = false;
+  };
+  
+  const reset = (width: number, height: number) => {
+    setup(width, height);
+  };
+  
+  const getStepCount = () => {
+    return stepCount;
+  };
+  
+  const setConfig = (newConfig: Partial<LangtonsAntConfig>) => {
+    Object.assign(config, newConfig);
+  };
+  
+  return {
+    setup,
+    draw,
+    pause,
+    resume,
+    reset,
+    getStepCount,
+    setConfig
+  };
+};
