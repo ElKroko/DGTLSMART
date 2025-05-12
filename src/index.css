@@ -14,3 +14,12 @@ body {
 code {
   font-family: 'Courier New', Courier, monospace;
 }
+
+a, a:visited, a:active {
+  color: #00ff00 !important;
+  text-decoration: underline;
+}
+a:hover {
+  color: #00ffaa !important;
+  text-decoration: underline;
+}

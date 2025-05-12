@@ -29,9 +29,9 @@ export const defaultLangtonsAntConfig: LangtonsAntConfig = {
   cellSize: 10,
   speed: 5,
   colorMode: 'binary',
-  antColor: '#FF5733',
-  backgroundColor: '#0f0f16',
-  cellActiveColor: '#6366f1',
+  antColor: '#00ff00',
+  backgroundColor: '#000000',
+  cellActiveColor: '#00cc00',
   rules: 'RL', // R = Turn right, L = Turn left
   wrap: true,
   multipleAnts: false,
@@ -165,16 +165,17 @@ export const createLangtonsAntEngine = (p5: any, config: LangtonsAntConfig) => {
     
     stepCount++;
   };
-  
-  const draw = () => {
+    const draw = () => {
     p5.background(config.backgroundColor);
+    
+    // Optimización: dibujar solo celdas activas
+    p5.noStroke(); // Eliminar bordes para optimizar el renderizado
     
     // Dibujar las celdas
     for (let x = 0; x < grid.width; x++) {
       for (let y = 0; y < grid.height; y++) {
         if (grid.cells[x][y] > 0) {
           p5.fill(getCellColor(grid.cells[x][y]));
-          p5.stroke(p5.color(0, 0, 0, 30));
           p5.rect(
             x * config.cellSize, 
             y * config.cellSize, 
@@ -187,7 +188,6 @@ export const createLangtonsAntEngine = (p5: any, config: LangtonsAntConfig) => {
     
     // Dibujar las hormigas
     p5.fill(config.antColor);
-    p5.noStroke();
     
     for (let ant of ants) {
       p5.push();
@@ -207,8 +207,10 @@ export const createLangtonsAntEngine = (p5: any, config: LangtonsAntConfig) => {
     }
     
     // Ejecutar múltiples pasos según la configuración de velocidad
-    for (let i = 0; i < config.speed; i++) {
-      updateAnts();
+    if (!isPaused) {
+      for (let i = 0; i < config.speed; i++) {
+        updateAnts();
+      }
     }
   };
   

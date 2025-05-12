@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import p5 from 'p5';
+import { Link } from 'react-router-dom';
 import { createLangtonsAntEngine, LangtonsAntConfig, defaultLangtonsAntConfig } from '../engines/LangtonsAntEngine';
-import ControlPanel from '../components/ui/ControlPanel';
 import Slider from '../components/ui/Slider';
 import Toggle from '../components/ui/Toggle';
 import Button from '../components/ui/Button';
@@ -13,9 +13,11 @@ const LangtonsAntPage: React.FC = () => {
   const [config, setConfig] = useState<LangtonsAntConfig>({...defaultLangtonsAntConfig});
   const [isPlaying, setIsPlaying] = useState(true);
   const [stepCount, setStepCount] = useState(0);
+  const [showControls, setShowControls] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const p5Instance = useRef<any>(null);
   const engineRef = useRef<any>(null);
 
@@ -25,25 +27,24 @@ const LangtonsAntPage: React.FC = () => {
       engineRef.current.setConfig(config);
     }
   }, [config]);
-    // Inicializar p5.js y el motor de Langton's Ant
+  
+  // Inicializar p5.js y el motor de Langton's Ant
   useEffect(() => {
-    if (!containerRef.current) return;
+    // Evitar inicialización múltiple
+    if (isInitialized || !containerRef.current) return;
     
     const sketch = (p: any) => {
-      // Referencia al motor de Langton's Ant
       let engine: any;
-      
+
       p.setup = () => {
-        // Crear un canvas que se adapte al contenedor
-        const width = containerRef.current?.clientWidth || 800;
-        const height = Math.min(window.innerHeight * 0.6, width);
+        // Usar el tamaño del contenedor
+        const width = containerRef.current?.clientWidth || window.innerWidth - 32;
+        const height = containerRef.current?.clientHeight || window.innerHeight - 32;
         
-        const canvas = p.createCanvas(width, height);
+        // Usar P2D renderer explícitamente para evitar problemas con WebGL
+        const canvas = p.createCanvas(width, height, p.P2D);
         canvas.parent(containerRef.current!);
-        
-        if (canvasRef.current) {
-          canvasRef.current = canvas.elt;
-        }
+        canvasRef.current = canvas.elt;
         
         // Inicializar el motor
         engine = createLangtonsAntEngine(p, config);
@@ -54,7 +55,12 @@ const LangtonsAntPage: React.FC = () => {
       
       p.draw = () => {
         engine.draw();
-        setStepCount(engine.getStepCount());
+        // Optimización: actualizar el contador de pasos solo cuando cambia
+        // para evitar actualizaciones de estado innecesarias
+        const currentStepCount = engine.getStepCount();
+        if (currentStepCount !== stepCount) {
+          setStepCount(currentStepCount);
+        }
       };
       
       // Manejar el redimensionamiento
@@ -62,7 +68,7 @@ const LangtonsAntPage: React.FC = () => {
         if (!containerRef.current) return;
         
         const width = containerRef.current.clientWidth;
-        const height = Math.min(window.innerHeight * 0.6, width);
+        const height = containerRef.current.clientHeight;
         
         p.resizeCanvas(width, height);
         engine.reset(width, height);
@@ -71,13 +77,24 @@ const LangtonsAntPage: React.FC = () => {
     
     // Crear la instancia de p5
     p5Instance.current = new p5(sketch);
+    setIsInitialized(true);
     
+    // Cleanup al desmontar
     return () => {
       if (p5Instance.current) {
-        p5Instance.current.remove();
+        try {
+          p5Instance.current.remove();
+        } catch (e) {
+          console.warn("Error removing p5 instance:", e);
+        }
+        p5Instance.current = null;
       }
+      engineRef.current = null;
+      canvasRef.current = null;
+      setIsInitialized(false);
     };
-  }, []); // Remove config dependency to avoid remounting
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialized]);
   
   // Manejar el play/pause
   useEffect(() => {
@@ -99,85 +116,60 @@ const LangtonsAntPage: React.FC = () => {
   };
   
   const handleReset = () => {
-    if (!engineRef.current || !p5Instance.current) return;
+    if (!engineRef.current || !containerRef.current) return;
     
-    const width = containerRef.current?.clientWidth || 800;
-    const height = Math.min(window.innerHeight * 0.6, width);
+    const width = containerRef.current.clientWidth;
+    const height = containerRef.current.clientHeight;
     
     engineRef.current.reset(width, height);
   };
 
+  const toggleControlsPanel = () => {
+    setShowControls(!showControls);
+  };
+
   return (
-    <div className="container mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-terminal text-terminal-green tracking-wider uppercase">
-          <span className="terminal-cursor">&gt;</span> LANGTON'S ANT
-        </h1>
-        <div className="w-24 h-px bg-terminal-green mb-4 opacity-50"></div>
-        <p className="text-terminal-dim font-mono">
-          EXPLORE THE EMERGENT BEHAVIOR OF THIS SIMPLE CELLULAR AUTOMATON.
-        </p>
+    <div className="fixed inset-0 bg-black overflow-hidden z-[40]">
+      {/* Botón de regreso a la navegación principal */}
+      <div className="absolute top-4 left-4 z-[60]">
+        <Link 
+          to="/" 
+          className="bg-black border border-terminal-green p-2 text-terminal-green hover:bg-terminal-green/20 transition-colors flex items-center space-x-2 text-xs"
+        >
+          <span>&lt;&lt;</span>
+          <span>VOLVER</span>
+        </Link>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <div className="border border-terminal-green/50 shadow-terminal overflow-hidden mb-6 bg-black p-2">
-            <div
-              ref={containerRef}
-              className="w-full aspect-square relative flex items-center justify-center border border-terminal-green/30"
-            >
-              <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
-              {!isPlaying && (
-                <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
-                  <div className="border border-terminal-green p-4 shadow-terminal text-center bg-black">
-                    <p className="text-lg text-terminal-highlight font-terminal mb-4 uppercase">
-                      <span className="animate-pulse">[ PAUSED ]</span>
-                    </p>
-                    <Button
-                      onClick={() => setIsPlaying(true)}
-                      variant="primary"
-                    >
-                      START PROGRAM
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap gap-4 mb-6 font-mono">
-            <Button
-              onClick={() => setIsPlaying(!isPlaying)}
-              variant="primary"
-              icon={
-                isPlaying ? (
-                  <span className="mr-1">||</span>
-                ) : (
-                  <span className="mr-1">▶</span>
-                )
-              }
-            >
-              {isPlaying ? 'PAUSE' : 'CONTINUE'}
-            </Button>
-            
-            <Button
-              onClick={handleReset}
-              variant="secondary"
-              icon={
-                <span className="mr-1">↻</span>
-              }
-            >
-              RESET
-            </Button>
-          </div>
-          
-          <div className="font-mono text-sm text-terminal-green border border-terminal-green/30 p-2 mb-8 inline-block">
-            <span className="text-terminal-dim">STEPS:</span> {stepCount.toString().padStart(8, '0')}
-          </div>
+      {/* Contenedor para el canvas de p5.js */}
+      <div 
+        ref={containerRef} 
+        className="absolute inset-0"
+        style={{ padding: '8px' }}
+      />
+      
+      {/* Panel de control flotante - esquina superior derecha */}
+      <div 
+        className="fixed top-16 right-4 z-[50] transition-all duration-300 ease-in-out"
+        style={{ 
+          maxWidth: '300px', 
+          transform: showControls ? 'translateX(0)' : 'translateX(calc(100% - 36px))'
+        }}
+      >
+        <div 
+          className="absolute -left-6 top-2 bg-black border border-terminal-green px-0.5 py-1 cursor-pointer text-terminal-green hover:bg-terminal-green/20 transition-colors text-xs"
+          onClick={toggleControlsPanel}
+        >
+          {showControls ? '>' : '<'}
         </div>
         
-        <div className="lg:col-span-1 space-y-6">
-          <ControlPanel title="Parameters">
+        <div className="bg-black bg-opacity-80 border border-terminal-green/70 shadow-terminal p-3 backdrop-blur-md">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-terminal-green text-sm font-terminal uppercase">{"// PARAMETERS"}</h2>
+            <span className="text-xs text-terminal-dim">v1.0</span>
+          </div>
+          
+          <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-3 text-xs">
             <Slider
               label="Cell Size"
               value={config.cellSize}
@@ -206,7 +198,7 @@ const LangtonsAntPage: React.FC = () => {
               ]}
             />
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2">
               <ColorPicker
                 label="Ant Color"
                 color={config.antColor}
@@ -220,18 +212,17 @@ const LangtonsAntPage: React.FC = () => {
               />
             </div>
             
-            <div className="space-y-3">
-              <label className="block text-sm text-terminal-green mb-2 tracking-wide">&gt; Rules</label>
+            <div className="space-y-2">
+              <label className="block text-xs text-terminal-green tracking-wide">&gt; Rules</label>
               <input
                 type="text"
                 value={config.rules}
                 onChange={(e) => handleConfigChange('rules', e.target.value.toUpperCase().replace(/[^RL]/g, ''))}
                 placeholder="RL"
-                className="w-full px-3 py-2 bg-black border border-terminal-green/50 text-terminal-green font-mono text-center tracking-widest focus:outline-none focus:border-terminal-green"
+                className="w-full px-2 py-1 bg-black border border-terminal-green/50 text-terminal-green font-mono text-center tracking-widest focus:outline-none focus:border-terminal-green text-sm"
               />
               <p className="text-xs text-terminal-dim">
-                USE R TO TURN RIGHT, L TO TURN LEFT.
-                EXAMPLE: "RL" IS THE CLASSIC LANGTON PATTERN.
+                R=RIGHT, L=LEFT. DEFAULT: "RL"
               </p>
             </div>
             
@@ -256,11 +247,40 @@ const LangtonsAntPage: React.FC = () => {
                 onChange={(value) => handleConfigChange('numberOfAnts', value)}
               />
             )}
-          </ControlPanel>
-          
-          <ExportPanel sketchRef={canvasRef} title="EXPORT PROGRAM" />
+            
+            <ExportPanel sketchRef={canvasRef} title="EXPORT" />
+          </div>
         </div>
       </div>
+      
+      {/* Panel de control inferior */}
+      <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-10 bg-black bg-opacity-80 border border-terminal-green/70 p-2 shadow-terminal backdrop-blur-md">
+        <div className="flex items-center space-x-4">
+          <Button
+            onClick={() => setIsPlaying(!isPlaying)}
+            variant="primary"
+            icon={isPlaying ? <span className="font-mono">||</span> : <span className="font-mono">▶</span>}
+          >
+            {isPlaying ? 'PAUSE' : 'PLAY'}
+          </Button>
+          
+          <Button
+            onClick={handleReset}
+            variant="secondary"
+            icon={<span className="font-mono">↻</span>}
+          >
+            RESET
+          </Button>
+          
+          <div className="font-mono text-terminal-green border-l border-terminal-green/30 pl-6 ml-2">
+            <span className="text-terminal-dim mr-2">STEPS:</span> 
+            <span className="text-terminal-highlight">{stepCount.toString().padStart(8, '0')}</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Scanlines para mantener el efecto CRT */}
+      <div className="scanlines fixed inset-0 z-[70] pointer-events-none"></div>
     </div>
   );
 };

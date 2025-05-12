@@ -13,12 +13,16 @@ const AppRouter = () => {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Páginas de experiencia completa fuera del MainLayout */}
+        <Route path="langtons-ant" element={<LangtonsAntPage />} />
+        
+        {/* Páginas regulares dentro del MainLayout */}
         <Route path="/" element={<MainLayout />}>
           <Route index element={<HomePage />} />
-          <Route path="langtons-ant" element={<LangtonsAntPage />} />
           <Route path="boids" element={<BoidsPage />} />
           <Route path="l-systems" element={<LSystemsPage />} />
-          <Route path="lenia" element={<LeniaPage />} />          <Route path="about" element={<AboutPage />} />
+          <Route path="lenia" element={<LeniaPage />} />
+          <Route path="about" element={<AboutPage />} />
           <Route path="gallery" element={<GalleryPage />} />
           <Route path="demo" element={<DemoPage />} />
         </Route>
